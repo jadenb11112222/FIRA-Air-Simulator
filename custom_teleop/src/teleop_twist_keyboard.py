@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import roslib; roslib.load_manifest('teleop_twist_keyboard')
+import roslib
+#roslib.load_manifest('teleop_twist_keyboard')
 import rospy
 
 from geometry_msgs.msg import Twist
@@ -77,7 +78,7 @@ def vels(speed,turn):
 	return "currently:\tspeed %s\tturn %s " % (speed,turn)
 
 if __name__=="__main__":
-    	settings = termios.tcgetattr(sys.stdin)
+	settings = termios.tcgetattr(sys.stdin)
 	
 	pub = rospy.Publisher('cmd_vel', Twist, queue_size = 1)
 	rospy.init_node('teleop_twist_keyboard')
@@ -92,8 +93,8 @@ if __name__=="__main__":
 	status = 0
 
 	try:
-		print msg
-		print vels(speed,turn)
+		print(msg)
+		print(vels(speed,turn))
 		while(1):
 			key = getKey()
 			if key in moveBindings.keys():
@@ -105,15 +106,16 @@ if __name__=="__main__":
 				speed = speed * speedBindings[key][0]
 				turn = turn * speedBindings[key][1]
 
-				print vels(speed,turn)
+				print(vels(speed,turn))
 				if (status == 14):
-					print msg
+					print(msg)
 				status = (status + 1) % 15
 				
 			elif key == '1':
-			    pub2.publish(empty_msg)
+				pub2.publish(empty_msg)
+
 			elif key == '2':
-			    pub3.publish(empty_msg)
+				pub3.publish(empty_msg)
 			
 			else:
 				x = 0
@@ -124,12 +126,13 @@ if __name__=="__main__":
 					break
 
 			twist = Twist()
-			twist.linear.x = x*speed; twist.linear.y = y*speed; twist.linear.z = z*speed;
+			twist.linear.x = x*speed; twist.linear.y = y*speed; twist.linear.z = z*speed
 			twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = th*turn
+			pub2.publish(Empty)
 			pub.publish(twist)
 
 	except:
-		print e
+		print(e)
 
 	finally:
 		twist = Twist()
@@ -137,6 +140,6 @@ if __name__=="__main__":
 		twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
 		pub.publish(twist)
 
-    		termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+		termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
 
 

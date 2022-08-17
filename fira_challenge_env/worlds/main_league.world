@@ -28,7 +28,7 @@
       <direction>-0.5 0.5 -1</direction>
     </light>
 
-    <light name='point_light_0' type='point'>
+    <light name="point_light_0" type="point">
       <pose frame="">0.2 4.4 1 0 -0 0</pose>
       <diffuse>0.5 0.5 0.5 1</diffuse>
       <specular>0.1 0.1 0.1 1</specular>
@@ -180,16 +180,7 @@
       <real_time>192 364914993</real_time>
       <wall_time>1497611230 87541147</wall_time>
       <iterations>191742</iterations>
-      <!-- <model name="ground_plane">
-        <pose frame="">0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name="link">
-          <pose frame="">0 0 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model> -->
+      
       
       <light name="sun">
         <pose frame="">0 0 10 0 -0 0</pose>
