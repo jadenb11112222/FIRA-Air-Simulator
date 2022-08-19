@@ -194,7 +194,9 @@ class RunRace(object):
         self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
       else:
         self.z = 0
-    
+        
+    mask = 0
+
     if self.state == "GATE_ROTATE":
       gate_lines = []
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
@@ -229,11 +231,10 @@ class RunRace(object):
         self.x = 0
         self.y = 0
         self.z = 0
-        self.yaw = 0.04
+        self.yaw = -0.09
     
-    if self.state == "LINEFOLLOW":
-      cv2.imshow("stream", img)
-      cv2.waitKey(1)
+    cv2.imshow("stream", mask)
+    cv2.waitKey(1)
     
 
   def move_publish(self):
