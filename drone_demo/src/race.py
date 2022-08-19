@@ -23,7 +23,7 @@ class RunRace(object):
 
     # define the different publishers, subscribers, and messages that will be used]
     rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
-    #rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
+    rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
     self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
     self._move_msg = Twist()
     self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
@@ -39,6 +39,7 @@ class RunRace(object):
     self.down_camera_y_k = 0.2 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
     self.front_camera_k = -0.0005
+    self.front_camera_yaw = -0.0005
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -110,8 +111,8 @@ class RunRace(object):
       horiz_offset = img_cropped.shape[0] / 2 - (x2 + x1 / 2)
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
-      cv2.imshow("stream", img_cropped)
-      cv2.waitKey(1)
+      #cv2.imshow("stream", img_cropped)
+      #cv2.waitKey(1)
     else:
       print("Could not find line, zooming out")
       img = self.bridge.imgmsg_to_cv2(msg)
@@ -124,8 +125,8 @@ class RunRace(object):
         perp_slope = -1 / slope
         horiz_offset = img.shape[0] / 2 - (x2 + x1 / 2)
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-        cv2.imshow("stream", img)
-        cv2.waitKey(1)
+        #cv2.imshow("stream", img)
+        #cv2.waitKey(1)
       else:
         perp_slope = np.random.randint(-5, 5)
         horiz_offset = np.random.choice([-1, 1])
@@ -151,12 +152,15 @@ class RunRace(object):
     time.sleep(0.1)
     self.move_drone((0,0,0))
     time.sleep(0.2)
+    self.state = "GATE_ROTATE"
+    
+  def forward(self):
     self.turn_drone(-0.1)
     time.sleep(2.8)
     self.turn_drone(0)
     time.sleep(0.5)
-    self.move_drone((1.0,0,0))
-    time.sleep(2.0)
+    self.move_drone((0.3,0,0))
+    time.sleep(5.5)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -171,9 +175,9 @@ class RunRace(object):
   
   def front_camera_cb(self, msg: Image) -> None:
     img = self.bridge.imgmsg_to_cv2(msg)
-    gate_lines = []
     if self.state == "GATE_ALIGNMENT":
-      img_cropped = img[:img.shape[0]//2]
+      #img_cropped = img[:img.shape[0]//2]
+      gate_lines = []
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
       img_edges = cv2.Canny(mask, 50, 150)
       lines = cv2.HoughLinesP(img_edges, 1, np.pi / 180, 50, maxLineGap = 50)
@@ -190,14 +194,53 @@ class RunRace(object):
             gate_lines.append(line)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
-        cv2.imshow("stream", img)
-        cv2.waitKey(1)
+        #cv2.imshow("stream", img)
+        #cv2.waitKey(1)
+        self.x = 0
+        self.y = 0
+        self.yaw = 0
+        self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
       else:
-        cv2.imshow("stream", bogus)
-      self.x = 0
-      self.y = 0
-      self.yaw = 0
-      self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
+        self.x = 0
+        self.y = 0
+        self.z = 0
+        self.yaw = 0.04
+    
+    if self.state == "GATE_ROTATE":
+      gate_lines = []
+      mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
+      img_edges = cv2.Canny(mask, 50, 150)
+      lines = cv2.HoughLinesP(img_edges, 1, np.pi / 180, 50, maxLineGap = 50)
+      if lines is not None:
+        count = 0
+        previous_line_x = lines[0][0][0]
+        for line in lines:
+          x1, y1, x2, y2 = line[0]
+          slope = (x2 - x1) / (y1 - y2)
+          if abs(slope) < 1.0 and len(gate_lines) == 0:
+            gate_lines.append(line)
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+          elif abs(slope) < 1.0 and abs(y1 - gate_lines[0][0][1]) > 10:
+            gate_lines.append(line)
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+            break
+        #cv2.imshow("stream", img)
+        #cv2.waitKey(1)
+        self.x = 0
+        self.y = 0
+        self.z = 0
+        print(img.shape[1]/2)
+        print(((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2))
+        self.yaw = ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) * self.front_camera_yaw
+        if ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) < 15.0:
+          self.state = "FORWARD"
+      else:
+        #cv2.imshow(bogus)
+        self.x = 0
+        self.y = 0
+        self.z = 0
+        self.yaw = 0.04
+    
 
   def move_publish(self):
     self._move_msg.linear.x = self.x
@@ -210,6 +253,8 @@ class RunRace(object):
     while(True):
       if self.state == "TAKEOFF":
         self.takeoff()
+      elif self.state == "FORWARD":
+        self.forward()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
         self.state = "LINEFOLLOW"
@@ -218,7 +263,7 @@ class RunRace(object):
       elif self.state == "LAND":
         self.land()
       self.move_publish()
-      
+      print(self.state)
 if __name__ == '__main__':
   run_race = RunRace()
   try:
