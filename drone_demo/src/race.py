@@ -80,9 +80,23 @@ class RunRace(object):
   def gate_alignment(self):
     return
 
+  def down_camera_cb(self, msg):
+    if self.state != "LINEFOLLOW": return
+    img = self.bridge.imgmsg_to_cv2(msg)
+    mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
+    edges = cv2.Canny(mask, 75, 150)
+    # lines = cv2.HoughLinesP(mask, rho = 1,theta = np.pi / 180, threshold = 100, minLineLength = 100, maxLineGap = 40)
+    # if lines is not None:
+    #   for line in lines:
+    #     print(line)
+    #     x1, y1, x2, y2 = line[0]
+    #     mask = cv2.line(mask, (x1, y1), (x2, y2), (0, 255, 0), 10)
+    cv2.imshow("stream", edges)
+    cv2.waitKey(1)
+
   def takeoff(self):
     # make the drone takeoff
-    i=0
+    i = 0
     while not i == 3:
         self._pub_takeoff.publish(self._takeoff_msg)
         rospy.loginfo('Taking off...')
@@ -111,12 +125,6 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.state = "HOVER"
-
-  def down_camera_cb(self, msg: Image) -> None:
-    img = self.bridge.imgmsg_to_cv2(msg)
-    mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
-    cv2.imshow("stream", mask)
-    cv2.waitKey(1)
   
   def move_publish(self):
     self._move_msg.linear.x = self.x
@@ -131,6 +139,7 @@ class RunRace(object):
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
+        self.state = "LINEFOLLOW"
       elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
       elif self.state == "LAND":
