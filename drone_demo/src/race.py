@@ -135,7 +135,6 @@ class RunRace(object):
     # target is for the normal line slope to be 0 - employ P controller for this
     self.x = self.forward_speed
     self.y = 0 # self.down_camera_y_k * horiz_offset
-    self.z = 0
     self.yaw = self.down_camera_yaw_k * perp_slope
 
   def takeoff(self):
@@ -147,7 +146,7 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.move_drone((0,0,1.2))
-    time.sleep(0.6)
+    time.sleep(0.55)
     self.move_drone((0,0,-1))
     time.sleep(0.1)
     self.move_drone((0,0,0))
@@ -155,10 +154,6 @@ class RunRace(object):
     self.state = "GATE_ROTATE"
     
   def forward(self):
-    self.turn_drone(-0.1)
-    time.sleep(2.8)
-    self.turn_drone(0)
-    time.sleep(0.5)
     self.move_drone((0.3,0,0))
     time.sleep(5.5)
     self.move_drone((0,0,0))
@@ -175,7 +170,7 @@ class RunRace(object):
   
   def front_camera_cb(self, msg: Image) -> None:
     img = self.bridge.imgmsg_to_cv2(msg)
-    if self.state == "GATE_ALIGNMENT":
+    if self.state == "LINEFOLLOW":
       #img_cropped = img[:img.shape[0]//2]
       gate_lines = []
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
@@ -196,15 +191,9 @@ class RunRace(object):
             break
         #cv2.imshow("stream", img)
         #cv2.waitKey(1)
-        self.x = 0
-        self.y = 0
-        self.yaw = 0
         self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
       else:
-        self.x = 0
-        self.y = 0
         self.z = 0
-        self.yaw = 0.04
     
     if self.state == "GATE_ROTATE":
       gate_lines = []
@@ -233,6 +222,7 @@ class RunRace(object):
         print(((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2))
         self.yaw = ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) * self.front_camera_yaw
         if ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) < 15.0:
+          self.yaw = 0
           self.state = "FORWARD"
       else:
         #cv2.imshow(bogus)
@@ -240,6 +230,10 @@ class RunRace(object):
         self.y = 0
         self.z = 0
         self.yaw = 0.04
+    
+    if self.state == "LINEFOLLOW":
+      cv2.imshow("stream", img)
+      cv2.waitKey(1)
     
 
   def move_publish(self):
