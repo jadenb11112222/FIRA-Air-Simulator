@@ -126,22 +126,16 @@ class RunRace(object):
     self._pub_cmd_vel.publish(self._move_msg)
 
   def run_race(self):
-    # this callback is called when the action server is called.
-    # this is the function that computes the Fibonacci sequence
-    # and returns the sequence to the node that called the action server
-    
-    # helper variables
-    self.rate = rospy.Rate(1)
-
     while(True):
       if self.state == "TAKEOFF":
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
-      elif self.state == "GATE_ALIGNMENT"
+      elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
       elif self.state == "LAND":
         self.land()
+      self.move_publish()
       
 if __name__ == '__main__':
   rospy.init_node('race')
