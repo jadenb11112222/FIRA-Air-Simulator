@@ -35,8 +35,9 @@ class RunRace(object):
     self.line_lower_bound = np.array([72, 72, 72])
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
-    self.down_camera_k = -1.2 # p controller multiplier
-    self.forward_speed = 0.4
+    self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
+    self.down_camera_y_k = 0.2 # y p controller multiplier, keep line centered
+    self.forward_speed = 0.3
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -91,6 +92,8 @@ class RunRace(object):
     if self.state != "LINEFOLLOW": return
     img = self.bridge.imgmsg_to_cv2(msg)
     width, height, _ = img.shape
+
+    # compute slope of line perpendicular to line on the ground
     crop_width_start = int(width / self.down_camera_crop_ratio)
     crop_width_end = width - crop_width_start
     crop_height_start = int(height / self.down_camera_crop_ratio)
@@ -103,6 +106,7 @@ class RunRace(object):
       x1, y1, x2, y2 = lines[0][0]
       slope = (y2 - y1) / (x2 - x1)
       perp_slope = -1 / slope
+      horiz_offset = img_cropped.shape[0] / 2 - (x2 + x1 / 2)
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
       cv2.imshow("stream", img_cropped)
@@ -116,17 +120,19 @@ class RunRace(object):
         x1, y1, x2, y2 = lines[0][0]
         slope = (y2 - y1) / (x2 - x1)
         perp_slope = -1 / slope
+        horiz_offset = img.shape[0] / 2 - (x2 + x1 / 2)
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
         cv2.imshow("stream", img)
       else:
-        perp_slope = 0.1
+        perp_slope = np.random.randint(-5, 5)
+        horiz_offset = np.random.choice([-1, 1])
 
-    # now we have the slope of the line perpendicular to the line on the ground
-    # target is for this slope to be 0 - employ P controller for this
+    print(f"horiz offset: {horiz_offset}, perp slope: {perp_slope}")
+    # target is for the normal line slope to be 0 - employ P controller for this
     self.x = self.forward_speed
-    self.y = 0
+    self.y = 0 # self.down_camera_y_k * horiz_offset
     self.z = 0
-    self.yaw = self.down_camera_k * perp_slope
+    self.yaw = self.down_camera_yaw_k * perp_slope
     cv2.waitKey(1)
 
   def takeoff(self):
