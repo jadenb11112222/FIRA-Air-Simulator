@@ -148,11 +148,13 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.move_drone((0,0,0.9))
-    time.sleep(0.66)
+    time.sleep(0.7)
     self.move_drone((0,0,-0.8))
     time.sleep(0.1)
     self.move_drone((0,0,0))
     time.sleep(0.2)
+    self.turn_drone(-0.1)
+    time.sleep(2.3)
     self.state = "FORWARD" # or "GATE_ROTATE"
     
   def forward(self):
@@ -193,8 +195,10 @@ class RunRace(object):
             break
         #cv2.imshow("stream", img)
         #cv2.waitKey(1)
-        print(gate_lines)
-        self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
+        if len(gate_lines) == 2:
+          self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
+        else:
+          self.z = 0
       else:
         self.z = 0
     
@@ -221,12 +225,12 @@ class RunRace(object):
         self.x = 0
         self.y = 0
         self.z = 0
-        print(img.shape[1]/2)
-        print(((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2))
-        self.yaw = ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) * self.front_camera_yaw
-        if ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) < 15.0:
-          self.yaw = 0
-          self.state = "FORWARD"
+        if len(gate_lines) == 2:
+          print(((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2))
+          self.yaw = ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) * self.front_camera_yaw
+          if ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) < 15.0:
+            self.yaw = 0
+            self.state = "FORWARD"
       else:
         #cv2.imshow(bogus)
         self.x = 0
