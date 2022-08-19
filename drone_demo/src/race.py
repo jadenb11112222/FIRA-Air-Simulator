@@ -15,6 +15,19 @@ class RunRace(object):
     self.state = "TAKEOFF"
     self.ctrl_c = False
     self.rate = rospy.Rate(10)
+
+    # define the different publishers, subscribers, and messages that will be used
+    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+    self._move_msg = Twist()
+    self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
+    self._takeoff_msg = Empty()
+    self._pub_land = rospy.Publisher('/drone/land', Empty, queue_size=1)
+    self._land_msg = Empty()
+    self.bridge = CvBridge()
+    self.rate = rospy.Rate(10)
+    self.lower_bound = np.array([72, 72, 72])
+    self.upper_bound = np.array([90,90,90])
     
   
   def publish_once_in_cmd_vel(self, cmd):
@@ -105,19 +118,6 @@ class RunRace(object):
     
     # helper variables
     r = rospy.Rate(1)
-    
-    # define the different publishers and messages that will be used
-    self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
-    self._move_msg = Twist()
-    self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
-    self._takeoff_msg = Empty()
-    self._pub_land = rospy.Publisher('/drone/land', Empty, queue_size=1)
-    self._land_msg = Empty()
-    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
-    self.bridge = CvBridge()
-    self.rate = rospy.Rate(10)
-    self.lower_bound = np.array([72, 72, 72])
-    self.upper_bound = np.array([90,90,90])
 
     while(True):
       if self.state == "TAKEOFF":
