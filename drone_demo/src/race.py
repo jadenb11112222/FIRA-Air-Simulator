@@ -15,6 +15,10 @@ class RunRace(object):
     self.state = "TAKEOFF"
     self.ctrl_c = False
     self.rate = rospy.Rate(10)
+    self.x = 0.0
+    self.y = 0.0
+    self.z = 0.0
+    self.yaw = 0.0
 
     # define the different publishers, subscribers, and messages that will be used
     rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
@@ -73,6 +77,9 @@ class RunRace(object):
     self._move_msg.linear.z = speeds[2]
     self.publish_once_in_cmd_vel(self._move_msg)
 
+  def gate_alignment(self):
+    return
+
   def takeoff(self):
     # make the drone takeoff
     i=0
@@ -106,27 +113,35 @@ class RunRace(object):
     self.state = "HOVER"
 
   def down_camera_cb(self, msg: Image) -> None:
-      img = self.bridge.imgmsg_to_cv2(msg)
-      mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
-      cv2.imshow("stream", mask)
-      cv2.waitKey(1)
-    
+    img = self.bridge.imgmsg_to_cv2(msg)
+    mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
+    cv2.imshow("stream", mask)
+    cv2.waitKey(1)
+  
+  def move_publish(self):
+    self._move_msg.linear.x = self.x
+    self._move_msg.linear.y = self.y
+    self._move_msg.linear.z = self.z
+    self._move_msg.angular.z = self.yaw
+    self._pub_cmd_vel.publish(self._move_msg)
+
   def run_race(self):
     # this callback is called when the action server is called.
     # this is the function that computes the Fibonacci sequence
     # and returns the sequence to the node that called the action server
     
     # helper variables
-    r = rospy.Rate(1)
+    self.rate = rospy.Rate(1)
 
     while(True):
       if self.state == "TAKEOFF":
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
+      elif self.state == "GATE_ALIGNMENT"
+        self.gate_alignment()
       elif self.state == "LAND":
         self.land()
-    
       
 if __name__ == '__main__':
   rospy.init_node('race')
