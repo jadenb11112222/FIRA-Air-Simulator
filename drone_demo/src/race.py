@@ -156,7 +156,7 @@ class RunRace(object):
     self.turn_drone(0)
     time.sleep(0.5)
     self.move_drone((1.0,0,0))
-    time.sleep(1.3)
+    time.sleep(2.0)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -175,8 +175,6 @@ class RunRace(object):
     if self.state == "GATE_ALIGNMENT":
       img_cropped = img[:img.shape[0]//2]
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
-      #img_uint8 = cv2.convertScaleAbs(img_cropped)
-      #rospy.loginfo(img_uint8.dtype)
       img_edges = cv2.Canny(mask, 50, 150)
       lines = cv2.HoughLinesP(img_edges, 1, np.pi / 180, 50, maxLineGap = 50)
       if lines is not None:
@@ -199,10 +197,6 @@ class RunRace(object):
       self.x = 0
       self.y = 0
       self.yaw = 0
-      #print(gate_lines[0][0][1])
-      #print(gate_lines[1][0][1])
-      print(img.shape[0]/2)
-      print((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2)
       self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
 
   def move_publish(self):
@@ -224,7 +218,6 @@ class RunRace(object):
       elif self.state == "LAND":
         self.land()
       self.move_publish()
-      print(self.state)
       
 if __name__ == '__main__':
   run_race = RunRace()
