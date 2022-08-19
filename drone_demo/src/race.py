@@ -8,7 +8,7 @@ from geometry_msgs.msg import Twist
 class RunRace(object):
 
   def __init__(self):
-      
+    self.state = "TAKEOFF"
     self.ctrl_c = False
     self.rate = rospy.Rate(10)
     
@@ -55,6 +55,39 @@ class RunRace(object):
     self._move_msg.linear.y = speeds[1]
     self._move_msg.linear.z = speeds[2]
     self.publish_once_in_cmd_vel(self._move_msg)
+
+  def takeoff(self):
+    # make the drone takeoff
+    i=0
+    while not i == 3:
+        self._pub_takeoff.publish(self._takeoff_msg)
+        rospy.loginfo('Taking off...')
+        time.sleep(1)
+        i += 1
+    self.move_drone((0,0,1.2))
+    time.sleep(0.6)
+    self.move_drone((0,0,-1))
+    time.sleep(0.1)
+    self.move_drone((0,0,0))
+    time.sleep(0.2)
+    self.turn_drone(-0.1)
+    time.sleep(2.8)
+    self.turn_drone(0)
+    time.sleep(0.5)
+    self.move_drone((1.0,0,0))
+    time.sleep(2.0)
+    self.move_drone((0,0,0))
+    self.state = "HOVER"
+
+  def land(self):
+    i=0
+    while not i == 3:
+        self._pub_land.publish(self._land_msg)
+        rospy.loginfo('Landing...')
+        time.sleep(1)
+        i += 1
+    self.state = "HOVER"
+
     
   def run_race(self):
     # this callback is called when the action server is called.
@@ -71,30 +104,15 @@ class RunRace(object):
     self._takeoff_msg = Empty()
     self._pub_land = rospy.Publisher('/drone/land', Empty, queue_size=1)
     self._land_msg = Empty()
+
+    while(True):
+      if self.state == "TAKEOFF":
+        self.takeoff()
+      elif self.state == "HOVER":
+        self.move_drone((0,0,0))
+      elif self.state == "LAND":
+        self.land()
     
-    # make the drone takeoff
-    i=0
-    while not i == 3:
-        self._pub_takeoff.publish(self._takeoff_msg)
-        rospy.loginfo('Taking off...')
-        time.sleep(1)
-        i += 1
-    
-    # define the seconds to move in each side of the square (which is taken from the goal) and the seconds to turn
-    sideSeconds = 2.0
-    turnSeconds = 1.8
-    
-    self.move_drone((0,0,1.4))
-    time.sleep(0.6)
-    self.stop_drone()
-    time.sleep(1000)
-    
-    i=0
-    while not i == 3:
-        self._pub_land.publish(self._land_msg)
-        rospy.loginfo('Landing...')
-        time.sleep(1)
-        i += 1
       
 if __name__ == '__main__':
   rospy.init_node('race')
