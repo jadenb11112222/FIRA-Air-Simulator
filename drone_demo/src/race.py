@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+from dis import dis
 import rospy
 import time
 from std_msgs.msg import Empty
@@ -12,6 +13,7 @@ import numpy as np
 class RunRace(object):
 
   def __init__(self):
+    rospy.init_node('RunRace', anonymous=True, disable_signals=True)
     self.state = "TAKEOFF"
     self.ctrl_c = False
     self.rate = rospy.Rate(10)
@@ -20,8 +22,9 @@ class RunRace(object):
     self.z = 0.0
     self.yaw = 0.0
 
-    # define the different publishers, subscribers, and messages that will be used
-    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    # define the different publishers, subscribers, and messages that will be used]
+    #rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
     self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
     self._move_msg = Twist()
     self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
@@ -33,6 +36,8 @@ class RunRace(object):
     self.line_lower_bound = np.array([72, 72, 72])
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
+    self.gate_lower_bound = np.array([250, 72, 160])
+    self.gate_upper_bound = np.array([260, 84, 169])
     
   
   def publish_once_in_cmd_vel(self, cmd):
@@ -67,7 +72,7 @@ class RunRace(object):
   # function that makes the drone move forward
   def move_forward_drone(self, speed):
     rospy.loginfo("Moving forward...")
-    self._move_msg.linear.x = speed
+    self._move_msg.linear.xreturn = speed
     self._move_msg.angular.z = 0.0
     self.publish_once_in_cmd_vel(self._move_msg)
   
@@ -125,7 +130,7 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.move_drone((0,0,1.2))
-    time.sleep(0.6)
+    time.sleep(0.3)
     self.move_drone((0,0,-1))
     time.sleep(0.1)
     self.move_drone((0,0,0))
@@ -135,7 +140,7 @@ class RunRace(object):
     self.turn_drone(0)
     time.sleep(0.5)
     self.move_drone((1.0,0,0))
-    time.sleep(2.0)
+    time.sleep(0.5)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -147,6 +152,24 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.state = "HOVER"
+
+  def front_camera_cb(self, msg: Image) -> None:
+    img = self.bridge.imgmsg_to_cv2(msg)
+    if self.state == "GATE_ALIGNMENT":
+      img_cropped = img[:img.shape[0]//2]
+      mask = cv2.inRange(img_cropped, self.gate_lower_bound, self.gate_upper_bound)
+      #img_uint8 = cv2.convertScaleAbs(img_cropped)
+      #rospy.loginfo(img_uint8.dtype)
+      img_edges = cv2.Canny(mask, 50, 150)
+      """img_lines = cv2.HoughLinesP(img_edges, rho = 1,theta = np.pi / 180, threshold = 100, minLineLength = 100, maxLineGap = 40)
+      if img_lines is not None:
+        for line in img_lines:
+          print(line)
+          x1, y1, x2, y2 = line[0]
+          img_lines = cv2.line(img_lines, (x1, y1), (x2, y2), (0, 255, 0), 10)"""
+      rospy.loginfo(img_edges)
+      cv2.imshow("stream", img_edges)
+      cv2.waitKey(1)
   
   def move_publish(self):
     self._move_msg.linear.x = self.x
@@ -161,15 +184,16 @@ class RunRace(object):
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
-        self.state = "LINEFOLLOW"
+        self.state = "GATE_ALIGNMENT"
       elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
+        time.sleep(100)
+        self.state = "LAND"
       elif self.state == "LAND":
         self.land()
       self.move_publish()
       
 if __name__ == '__main__':
-  rospy.init_node('race')
   run_race = RunRace()
   try:
       run_race.run_race()
