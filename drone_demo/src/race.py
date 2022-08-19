@@ -22,8 +22,8 @@ class RunRace(object):
     self.yaw = 0.0
 
     # define the different publishers, subscribers, and messages that will be used]
-    #rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
-    rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
+    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    #rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
     self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
     self._move_msg = Twist()
     self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
@@ -38,7 +38,7 @@ class RunRace(object):
     self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
     self.down_camera_y_k = 0.2 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
-    self.front_camera_k = 1.2
+    self.front_camera_k = -0.0005
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -111,6 +111,7 @@ class RunRace(object):
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
       cv2.imshow("stream", img_cropped)
+      cv2.waitKey(1)
     else:
       print("Could not find line, zooming out")
       img = self.bridge.imgmsg_to_cv2(msg)
@@ -124,6 +125,7 @@ class RunRace(object):
         horiz_offset = img.shape[0] / 2 - (x2 + x1 / 2)
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
         cv2.imshow("stream", img)
+        cv2.waitKey(1)
       else:
         perp_slope = np.random.randint(-5, 5)
         horiz_offset = np.random.choice([-1, 1])
@@ -134,7 +136,6 @@ class RunRace(object):
     self.y = 0 # self.down_camera_y_k * horiz_offset
     self.z = 0
     self.yaw = self.down_camera_yaw_k * perp_slope
-    cv2.waitKey(1)
 
   def takeoff(self):
     # make the drone takeoff
@@ -155,7 +156,7 @@ class RunRace(object):
     self.turn_drone(0)
     time.sleep(0.5)
     self.move_drone((1.0,0,0))
-    time.sleep(0.5)
+    time.sleep(1.3)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -166,7 +167,7 @@ class RunRace(object):
         rospy.loginfo('Landing...')
         time.sleep(1)
         i += 1
-    self.state = "HOVER"
+    self.state = "LAND"
   
   def front_camera_cb(self, msg: Image) -> None:
     img = self.bridge.imgmsg_to_cv2(msg)
@@ -195,11 +196,14 @@ class RunRace(object):
         cv2.waitKey(1)
       else:
         cv2.imshow("stream", bogus)
-      print(gate_lines)
       self.x = 0
       self.y = 0
       self.yaw = 0
-      self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[1]/2) * self.front_camera_k
+      #print(gate_lines[0][0][1])
+      #print(gate_lines[1][0][1])
+      print(img.shape[0]/2)
+      print((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2)
+      self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
 
   def move_publish(self):
     self._move_msg.linear.x = self.x
@@ -214,12 +218,13 @@ class RunRace(object):
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
-        self.state = "LINEFOLLOWER"
+        self.state = "LINEFOLLOW"
       elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
       elif self.state == "LAND":
         self.land()
       self.move_publish()
+      print(self.state)
       
 if __name__ == '__main__':
   run_race = RunRace()
