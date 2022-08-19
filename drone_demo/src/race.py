@@ -4,6 +4,10 @@ import rospy
 import time
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist
+import cv2
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import numpy as np
 
 class RunRace(object):
 
@@ -88,6 +92,11 @@ class RunRace(object):
         i += 1
     self.state = "HOVER"
 
+  def down_camera_cb(self, msg: Image) -> None:
+      img = self.bridge.imgmsg_to_cv2(msg)
+      mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
+      cv2.imshow("stream", mask)
+      cv2.waitKey(1)
     
   def run_race(self):
     # this callback is called when the action server is called.
@@ -104,6 +113,11 @@ class RunRace(object):
     self._takeoff_msg = Empty()
     self._pub_land = rospy.Publisher('/drone/land', Empty, queue_size=1)
     self._land_msg = Empty()
+    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    self.bridge = CvBridge()
+    self.rate = rospy.Rate(10)
+    self.lower_bound = np.array([72, 72, 72])
+    self.upper_bound = np.array([90,90,90])
 
     while(True):
       if self.state == "TAKEOFF":
