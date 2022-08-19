@@ -85,13 +85,13 @@ class RunRace(object):
     img = self.bridge.imgmsg_to_cv2(msg)
     mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
     edges = cv2.Canny(mask, 75, 150)
-    # lines = cv2.HoughLinesP(mask, rho = 1,theta = np.pi / 180, threshold = 100, minLineLength = 100, maxLineGap = 40)
-    # if lines is not None:
-    #   for line in lines:
-    #     print(line)
-    #     x1, y1, x2, y2 = line[0]
-    #     mask = cv2.line(mask, (x1, y1), (x2, y2), (0, 255, 0), 10)
-    cv2.imshow("stream", edges)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap = 50)
+    if lines is not None:
+      for i, line in enumerate(lines):
+        x1, y1, x2, y2 = line[0]
+        print(f"line: {i}, line length: {np.sqrt((x1 - x2)**2 + (y1 - y2)**2)}, line: {line}")
+        cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+    cv2.imshow("stream", img)
     cv2.waitKey(1)
 
   def takeoff(self):
