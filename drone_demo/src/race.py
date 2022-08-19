@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-from dis import dis
 import rospy
 import time
 from std_msgs.msg import Empty
@@ -23,8 +22,8 @@ class RunRace(object):
     self.yaw = 0.0
 
     # define the different publishers, subscribers, and messages that will be used]
-    #rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
-    rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
+    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    # rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
     self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
     self._move_msg = Twist()
     self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
@@ -36,6 +35,7 @@ class RunRace(object):
     self.line_lower_bound = np.array([72, 72, 72])
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
+    self.down_camera_k = -1.2 # p controller multiplier
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -72,7 +72,7 @@ class RunRace(object):
   # function that makes the drone move forward
   def move_forward_drone(self, speed):
     rospy.loginfo("Moving forward...")
-    self._move_msg.linear.xreturn = speed
+    self._move_msg.linear.x = speed
     self._move_msg.angular.z = 0.0
     self.publish_once_in_cmd_vel(self._move_msg)
   
@@ -101,7 +101,7 @@ class RunRace(object):
     if lines is not None:
       x1, y1, x2, y2 = lines[0][0]
       slope = (y2 - y1) / (x2 - x1)
-      perp_slope = - 1 / slope
+      perp_slope = -1 / slope
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
       cv2.imshow("stream", img_cropped)
@@ -114,11 +114,18 @@ class RunRace(object):
       if lines is not None:
         x1, y1, x2, y2 = lines[0][0]
         slope = (y2 - y1) / (x2 - x1)
-        perp_slope = - 1 / slope
+        perp_slope = -1 / slope
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
         cv2.imshow("stream", img)
       else:
         perp_slope = 0.1
+
+    # now we have the slope of the line perpendicular to the line on the ground
+    # target is for this slope to be 0 - employ P controller for this
+    self.x = 0
+    self.y = 0
+    self.z = 0
+    self.yaw = self.down_camera_k * perp_slope
     cv2.waitKey(1)
 
   def takeoff(self):
@@ -130,7 +137,7 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.move_drone((0,0,1.2))
-    time.sleep(0.3)
+    time.sleep(0.6)
     self.move_drone((0,0,-1))
     time.sleep(0.1)
     self.move_drone((0,0,0))
@@ -140,7 +147,7 @@ class RunRace(object):
     self.turn_drone(0)
     time.sleep(0.5)
     self.move_drone((1.0,0,0))
-    time.sleep(0.5)
+    time.sleep(2.0)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -152,7 +159,7 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.state = "HOVER"
-
+  
   def front_camera_cb(self, msg: Image) -> None:
     img = self.bridge.imgmsg_to_cv2(msg)
     if self.state == "GATE_ALIGNMENT":
@@ -184,7 +191,7 @@ class RunRace(object):
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
-        self.state = "GATE_ALIGNMENT"
+        self.state = "LINEFOLLOW"
       elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
         time.sleep(100)
