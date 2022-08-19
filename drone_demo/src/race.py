@@ -36,12 +36,12 @@ class RunRace(object):
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
     self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
-    self.down_camera_y_k = 0.2 # y p controller multiplier, keep line centered
+    self.down_camera_y_k = -0.005 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
-    self.front_camera_k = -0.0005
-    self.front_camera_yaw = -0.0005
-    self.gate_lower_bound = np.array([250, 72, 160])
-    self.gate_upper_bound = np.array([260, 84, 169])
+    self.front_camera_k = -0.0008
+    self.front_camera_yaw = -0.005
+    self.gate_lower_bound = np.array([235, 62, 150])
+    self.gate_upper_bound = np.array([275, 94, 179])
     
   
   def publish_once_in_cmd_vel(self, cmd):
@@ -108,7 +108,7 @@ class RunRace(object):
       x1, y1, x2, y2 = lines[0][0]
       slope = (y2 - y1) / (x2 - x1)
       perp_slope = -1 / slope
-      horiz_offset = img_cropped.shape[0] / 2 - (x2 + x1 / 2)
+      horiz_offset = img_cropped.shape[1] / 2 - (x2 + x1 / 2)
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
       #cv2.imshow("stream", img_cropped)
@@ -123,7 +123,7 @@ class RunRace(object):
         x1, y1, x2, y2 = lines[0][0]
         slope = (y2 - y1) / (x2 - x1)
         perp_slope = -1 / slope
-        horiz_offset = img.shape[0] / 2 - (x2 + x1 / 2)
+        horiz_offset = img.shape[1] / 2 - (x2 + x1 / 2)
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
         #cv2.imshow("stream", img)
         #cv2.waitKey(1)
@@ -134,7 +134,7 @@ class RunRace(object):
     print(f"horiz offset: {horiz_offset}, perp slope: {perp_slope}")
     # target is for the normal line slope to be 0 - employ P controller for this
     self.x = self.forward_speed
-    self.y = 0 # self.down_camera_y_k * horiz_offset
+    self.y = 0 #self.down_camera_y_k * horiz_offset
     self.yaw = self.down_camera_yaw_k * perp_slope
 
   def takeoff(self):
@@ -146,7 +146,7 @@ class RunRace(object):
         time.sleep(1)
         i += 1
     self.move_drone((0,0,1.2))
-    time.sleep(0.55)
+    time.sleep(0.54)
     self.move_drone((0,0,-1))
     time.sleep(0.1)
     self.move_drone((0,0,0))
@@ -154,6 +154,9 @@ class RunRace(object):
     self.state = "GATE_ROTATE"
     
   def forward(self):
+    """self.turn_drone(-0.01)
+    time.sleep(0.3)"""
+    self.turn_drone(0.0)
     self.move_drone((0.3,0,0))
     time.sleep(5.5)
     self.move_drone((0,0,0))
@@ -185,16 +188,16 @@ class RunRace(object):
           if abs(slope) < 1.0 and len(gate_lines) == 0:
             gate_lines.append(line)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-          elif abs(slope) < 1.0 and abs(y1 - gate_lines[0][0][1]) > 10:
+          elif abs(slope) < 1.0 and abs(y1 - gate_lines[0][0][1]) > 70:
             gate_lines.append(line)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
-        #cv2.imshow("stream", img)
-        #cv2.waitKey(1)
+        cv2.imshow("stream", img)
+        cv2.waitKey(1)
         self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
       else:
         self.z = 0
-        
+
     mask = 0
 
     if self.state == "GATE_ROTATE":
@@ -233,8 +236,8 @@ class RunRace(object):
         self.z = 0
         self.yaw = -0.09
     
-    cv2.imshow("stream", mask)
-    cv2.waitKey(1)
+    """cv2.imshow("stream", mask)
+    cv2.waitKey(1)"""
     
 
   def move_publish(self):
