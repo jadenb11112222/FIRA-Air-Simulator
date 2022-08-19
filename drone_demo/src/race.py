@@ -22,8 +22,8 @@ class RunRace(object):
     self.yaw = 0.0
 
     # define the different publishers, subscribers, and messages that will be used]
-    rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
-    # rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
+    #rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
+    rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
     self._pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
     self._move_msg = Twist()
     self._pub_takeoff = rospy.Publisher('/drone/takeoff', Empty, queue_size=1)
@@ -38,6 +38,7 @@ class RunRace(object):
     self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
     self.down_camera_y_k = 0.2 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
+    self.front_camera_k = 1.2
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -154,7 +155,7 @@ class RunRace(object):
     self.turn_drone(0)
     time.sleep(0.5)
     self.move_drone((1.0,0,0))
-    time.sleep(2.0)
+    time.sleep(0.5)
     self.move_drone((0,0,0))
     self.state = "HOVER"
 
@@ -169,6 +170,7 @@ class RunRace(object):
   
   def front_camera_cb(self, msg: Image) -> None:
     img = self.bridge.imgmsg_to_cv2(msg)
+    gate_lines = []
     if self.state == "GATE_ALIGNMENT":
       img_cropped = img[:img.shape[0]//2]
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
@@ -179,7 +181,6 @@ class RunRace(object):
       if lines is not None:
         count = 0
         previous_line_y = lines[0][0][1]
-        gate_lines = []
         for line in lines:
           x1, y1, x2, y2 = line[0]
           slope = (y2 - y1) / (x2 - x1)
@@ -190,30 +191,16 @@ class RunRace(object):
             gate_lines.append(line)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
-            
-        
-        """for line in lines:
-          if count == 2:
-            break
-          x1, y1, x2, y2 = line[0]
-          if abs(x2 - x1) < 2:
-            continue
-          slope = (y2 - y1) / (x2 - x1)
-          if abs(slope) < 1.3:
-            continue
-          elif 
-          if previous_line_y - y1 > 10 and abs(slope) < 1.3:
-            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-            previous_line_y = y1
-            count += 1"""
         cv2.imshow("stream", img)
         cv2.waitKey(1)
       else:
         cv2.imshow("stream", bogus)
-      #rospy.loginfo(img_edges)
-      #cv2.imshow("stream", img_edges)
-      #cv2.waitKey(1)
-  
+      print(gate_lines)
+      self.x = 0
+      self.y = 0
+      self.yaw = 0
+      self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[1]/2) * self.front_camera_k
+
   def move_publish(self):
     self._move_msg.linear.x = self.x
     self._move_msg.linear.y = self.y
@@ -227,11 +214,9 @@ class RunRace(object):
         self.takeoff()
       elif self.state == "HOVER":
         self.move_drone((0,0,0))
-        self.state = "LINEFOLLOW"
+        self.state = "LINEFOLLOWER"
       elif self.state == "GATE_ALIGNMENT":
         self.gate_alignment()
-        time.sleep(100)
-        self.state = "LAND"
       elif self.state == "LAND":
         self.land()
       self.move_publish()
