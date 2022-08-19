@@ -30,8 +30,9 @@ class RunRace(object):
     self._land_msg = Empty()
     self.bridge = CvBridge()
     self.rate = rospy.Rate(10)
-    self.lower_bound = np.array([72, 72, 72])
-    self.upper_bound = np.array([90,90,90])
+    self.line_lower_bound = np.array([72, 72, 72])
+    self.line_upper_bound = np.array([90, 90, 90])
+    self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
     
   
   def publish_once_in_cmd_vel(self, cmd):
@@ -83,15 +84,36 @@ class RunRace(object):
   def down_camera_cb(self, msg):
     if self.state != "LINEFOLLOW": return
     img = self.bridge.imgmsg_to_cv2(msg)
-    mask = cv2.inRange(img, self.lower_bound, self.upper_bound)
+    width, height, _ = img.shape
+    crop_width_start = int(width / self.down_camera_crop_ratio)
+    crop_width_end = width - crop_width_start
+    crop_height_start = int(height / self.down_camera_crop_ratio)
+    crop_height_end = height - crop_height_start
+    img_cropped = img[crop_width_start: crop_width_end, crop_height_start: crop_height_end]
+    mask = cv2.inRange(img_cropped, self.line_lower_bound, self.line_upper_bound)
     edges = cv2.Canny(mask, 75, 150)
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap = 50)
     if lines is not None:
-      for i, line in enumerate(lines):
-        x1, y1, x2, y2 = line[0]
-        print(f"line: {i}, line length: {np.sqrt((x1 - x2)**2 + (y1 - y2)**2)}, line: {line}")
+      x1, y1, x2, y2 = lines[0][0]
+      slope = (y2 - y1) / (x2 - x1)
+      perp_slope = - 1 / slope
+      cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
+      print(f"slope: {slope}, perp slope: {perp_slope}")
+      cv2.imshow("stream", img_cropped)
+    else:
+      print("Could not find line, zooming out")
+      img = self.bridge.imgmsg_to_cv2(msg)
+      mask = cv2.inRange(img, self.line_lower_bound, self.line_upper_bound)
+      edges = cv2.Canny(mask, 75, 150)
+      lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap = 50)
+      if lines is not None:
+        x1, y1, x2, y2 = lines[0][0]
+        slope = (y2 - y1) / (x2 - x1)
+        perp_slope = - 1 / slope
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-    cv2.imshow("stream", img)
+        cv2.imshow("stream", img)
+      else:
+        perp_slope = 0.1
     cv2.waitKey(1)
 
   def takeoff(self):
