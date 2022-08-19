@@ -165,19 +165,48 @@ class RunRace(object):
     img = self.bridge.imgmsg_to_cv2(msg)
     if self.state == "GATE_ALIGNMENT":
       img_cropped = img[:img.shape[0]//2]
-      mask = cv2.inRange(img_cropped, self.gate_lower_bound, self.gate_upper_bound)
+      mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
       #img_uint8 = cv2.convertScaleAbs(img_cropped)
       #rospy.loginfo(img_uint8.dtype)
       img_edges = cv2.Canny(mask, 50, 150)
-      """img_lines = cv2.HoughLinesP(img_edges, rho = 1,theta = np.pi / 180, threshold = 100, minLineLength = 100, maxLineGap = 40)
-      if img_lines is not None:
-        for line in img_lines:
-          print(line)
+      lines = cv2.HoughLinesP(img_edges, 1, np.pi / 180, 50, maxLineGap = 50)
+      if lines is not None:
+        count = 0
+        previous_line_y = lines[0][0][1]
+        gate_lines = []
+        for line in lines:
           x1, y1, x2, y2 = line[0]
-          img_lines = cv2.line(img_lines, (x1, y1), (x2, y2), (0, 255, 0), 10)"""
-      rospy.loginfo(img_edges)
-      cv2.imshow("stream", img_edges)
-      cv2.waitKey(1)
+          slope = (y2 - y1) / (x2 - x1)
+          if abs(slope) < 1.0 and len(gate_lines) == 0:
+            gate_lines.append(line)
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+          elif abs(slope) < 1.0 and abs(y1 - gate_lines[0][0][1]) > 10:
+            gate_lines.append(line)
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+            break
+            
+        
+        """for line in lines:
+          if count == 2:
+            break
+          x1, y1, x2, y2 = line[0]
+          if abs(x2 - x1) < 2:
+            continue
+          slope = (y2 - y1) / (x2 - x1)
+          if abs(slope) < 1.3:
+            continue
+          elif 
+          if previous_line_y - y1 > 10 and abs(slope) < 1.3:
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+            previous_line_y = y1
+            count += 1"""
+        cv2.imshow("stream", img)
+        cv2.waitKey(1)
+      else:
+        cv2.imshow("stream", bogus)
+      #rospy.loginfo(img_edges)
+      #cv2.imshow("stream", img_edges)
+      #cv2.waitKey(1)
   
   def move_publish(self):
     self._move_msg.linear.x = self.x
