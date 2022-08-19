@@ -5,7 +5,7 @@ import time
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist
 
-class MoveSquareClass(object):
+class RunRace(object):
 
   def __init__(self):
       
@@ -56,7 +56,7 @@ class MoveSquareClass(object):
     self._move_msg.linear.z = speeds[2]
     self.publish_once_in_cmd_vel(self._move_msg)
     
-  def move_square(self):
+  def run_race(self):
     # this callback is called when the action server is called.
     # this is the function that computes the Fibonacci sequence
     # and returns the sequence to the node that called the action server
@@ -86,31 +86,9 @@ class MoveSquareClass(object):
     
     self.move_drone((0,0,1.4))
     time.sleep(0.6)
-    self.move_drone((0,0,-1))
-    time.sleep(0.1)
-    self.move_drone((0,0,0))
-    time.sleep(0.2)
-    self.turn_drone(-0.1)
-    time.sleep(2.8)
-    self.turn_drone(0)
-    time.sleep(0.5)
-    self.move_drone((1.0,0,0))
-    time.sleep(5.0)
-    self.move_drone((0,0,0))
-    time.sleep(1000)
-    """i = 0
-    for i in range(0, 4):
-    
-      # Logic that makes the robot move forward and turn
-      self.move_forward_drone()
-      time.sleep(sideSeconds)
-      self.turn_drone()
-      time.sleep(turnSeconds)
-      
-      # the sequence is computed at 1 Hz frequency
-      r.sleep()"""
-    
     self.stop_drone()
+    time.sleep(1000)
+    
     i=0
     while not i == 3:
         self._pub_land.publish(self._land_msg)
@@ -119,9 +97,9 @@ class MoveSquareClass(object):
         i += 1
       
 if __name__ == '__main__':
-  rospy.init_node('move_square')
-  move_square = MoveSquareClass()
+  rospy.init_node('race')
+  run_race = RunRace()
   try:
-      move_square.move_square()
+      run_race.run_race()
   except rospy.ROSInterruptException:
       pass
