@@ -36,6 +36,7 @@ class RunRace(object):
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
     self.down_camera_k = -1.2 # p controller multiplier
+    self.forward_speed = 0.8
     self.gate_lower_bound = np.array([250, 72, 160])
     self.gate_upper_bound = np.array([260, 84, 169])
     
@@ -122,7 +123,7 @@ class RunRace(object):
 
     # now we have the slope of the line perpendicular to the line on the ground
     # target is for this slope to be 0 - employ P controller for this
-    self.x = 0
+    self.x = self.forward_speed
     self.y = 0
     self.z = 0
     self.yaw = self.down_camera_k * perp_slope
