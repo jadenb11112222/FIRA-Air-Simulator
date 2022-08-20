@@ -9,7 +9,7 @@ class CameraFeed(object):
 
     def __init__(self):
         rospy.init_node('CameraFeed', anonymous=True, disable_signals=True)
-        #rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
+        # rospy.Subscriber("/drone/front_camera/image_raw", Image, self.front_camera_cb)
         rospy.Subscriber("/drone/down_camera/image_raw", Image, self.down_camera_cb)
         self.bridge = CvBridge()
         self.rate = rospy.Rate(10)
