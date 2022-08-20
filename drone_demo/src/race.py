@@ -214,21 +214,22 @@ class RunRace(object):
       if lines is not None:
         for line in lines:
           x1, y1, x2, y2 = line[0]
-          if (abs(x2 - x1)) < 60:
+          if (abs(y2 - y1)) < 40:
             continue
-          slope = (y2 - y1) / (x2 - x1)
-          if abs(slope) < 2.0 and len(gate_line_ys) == 0:
-            gate_line_ys.append(y1)
-            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-          elif abs(slope) < 2.0 and abs(y1 - gate_line_ys[0]) > 70:
-            print("Found another line 70 apart")
-            gate_line_ys.append(y1)
+          slope = (x1 - x2) / (y2 - y1)
+          if abs(slope) < 1.0 and len(gate_line_ys) == 0:
+            gate_line_ys.append((y1 + y2) / 2)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
+          # elif abs(slope) < 1.0 and abs(y1 - gate_line_ys[0]) > 70:
+          #   print("Found another line 70 apart")
+          #   gate_line_ys.append(y1)
+          #   cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
+          #   break
         cv2.imshow("stream", img)
         cv2.waitKey(1)
-        if len(gate_line_ys) > 1:
-          self.z = ((gate_line_ys[0] + gate_line_ys[1]) / 2 - img.shape[0] / 2) * self.front_camera_gate_z_k
+        if len(gate_line_ys) > 0:
+          self.z = (gate_line_ys[0] - img.shape[0] / 2) * self.front_camera_gate_z_k
         else:
           self.z = 0
       else:
