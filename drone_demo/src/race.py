@@ -39,10 +39,12 @@ class RunRace(object):
     self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
     self.down_camera_y_k = 0.001 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
-    self.front_camera_k = -0.005 # -0.0008
-    self.front_camera_yaw = -0.0008
+    self.upward_speed = 0.3
+    self.front_camera_gate_z_k = -0.005 # -0.0008
+    self.front_camera_yaw_k = -0.0008
     self.gate_lower_bound = np.array([235, 62, 150])
     self.gate_upper_bound = np.array([275, 94, 179])
+    self.gate_align_time = 6.8
     
   
   def publish_once_in_cmd_vel(self, cmd):
@@ -172,13 +174,14 @@ class RunRace(object):
         rospy.loginfo('Taking off...')
         time.sleep(1)
         i += 1
-    self.move_drone((0,0,1.2))
-    time.sleep(0.54)
-    self.move_drone((0,0,-1))
-    time.sleep(0.1)
-    self.move_drone((0,0,0))
-    time.sleep(0.2)
-    self.state = "GATE_ROTATE"
+    # self.move_drone((0,0,1.2))
+    # time.sleep(0.54)
+    # self.move_drone((0,0,-1))
+    # time.sleep(0.1)
+    # self.move_drone((0,0,0))
+    # time.sleep(0.2)
+    self.start_gate_align = time.time()
+    self.state = "GATE_ALIGN"
     
   def land(self):
     i=0
@@ -225,51 +228,57 @@ class RunRace(object):
         cv2.imshow("stream", img)
         cv2.waitKey(1)
         if len(gate_line_ys) > 1:
-          self.z = ((gate_line_ys[0] + gate_line_ys[1]) / 2 - img.shape[0] / 2) * self.front_camera_k
-          print(self.z)
+          self.z = ((gate_line_ys[0] + gate_line_ys[1]) / 2 - img.shape[0] / 2) * self.front_camera_gate_z_k
         else:
           self.z = 0
       else:
         self.z = 0
     mask = 0
 
-    if self.state == "GATE_ROTATE":
-      gate_lines = []
+    if self.state == "GATE_ALIGN":
+      gate_line_xs = []
+      gate_line_ys = []
       mask = cv2.inRange(img, self.gate_lower_bound, self.gate_upper_bound)
-      img_edges = cv2.Canny(mask, 50, 150)
+      img_edges = cv2.Canny(mask,40, 120)
       lines = cv2.HoughLinesP(img_edges, 1, np.pi / 180, 50, maxLineGap = 50)
       if lines is not None:
-        count = 0
-        previous_line_x = lines[0][0][0]
         for line in lines:
           x1, y1, x2, y2 = line[0]
           if (abs(y1 - y2)) < 40:
             continue
           slope = (x2 - x1) / (y1 - y2)
-          if abs(slope) < 1.0 and len(gate_lines) == 0:
-            gate_lines.append(line)
+          if abs(slope) < 1.0 and len(gate_line_xs) == 0:
+            gate_line_xs.append(x1)
+            gate_line_ys.append((y1 + y2) / 2)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-          elif abs(slope) < 1.0 and abs(y1 - gate_lines[0][0][1]) > 10:
-            gate_lines.append(line)
+          elif abs(slope) < 1.0 and abs(x1 - gate_line_xs[0]) > 40:
+            gate_line_xs.append(x1)
+            gate_line_ys.append((y1 + y2) / 2)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
-        #cv2.imshow("stream", img)
-        #cv2.waitKey(1)
-        self.x = 0
+        cv2.imshow("stream", img)
+        cv2.waitKey(1)
+        self.x = self.forward_speed
         self.y = 0
-        self.z = 0
-        print(img.shape[1]/2)
-        print(((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2))
-        self.yaw = ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) * self.front_camera_yaw
-        if ((gate_lines[0][0][0] + gate_lines[1][0][0])/2 - img.shape[1]/2) < 15.0:
+        if len(gate_line_ys) > 0:
+          self.z = max(min((gate_line_ys[0] - img.shape[0] / 2) * self.front_camera_gate_z_k, self.upward_speed), -self.upward_speed)
+        else:
+          self.z = 0
+        if len(gate_line_xs) > 1:
+          # delta_h = (gate_line_ys[0] + gate_line_ys[1]) / 2 - img.shape[0] / 2
+          # self.z = max(min(delta_h * self.front_camera_z_k, self.upward_speed), -self.upward_speed)
+          self.yaw = ((gate_line_xs[0] + gate_line_xs[1]) / 2 - img.shape[1] / 2) * self.front_camera_yaw_k
+        else:
           self.yaw = 0
-          self.state = "FORWARD"
       else:
         #cv2.imshow(bogus)
         self.x = 0
         self.y = 0
         self.z = 0
-        self.yaw = -0.09
+        self.yaw = -0.3
+      if time.time() - self.start_gate_align > self.gate_align_time:
+        print("Switching to LINEFOLLOW mode")
+        self.state = "LINEFOLLOW"
     
     """cv2.imshow("stream", mask)
     cv2.waitKey(1)"""
