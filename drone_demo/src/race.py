@@ -36,7 +36,7 @@ class RunRace(object):
     self.line_upper_bound = np.array([90, 90, 90])
     self.down_camera_crop_ratio = 5 # get rid of 1/x around the border when cropping
     self.down_camera_yaw_k = -1.1 # yaw p controller multiplier, keep line vertical
-    self.down_camera_y_k = -0.005 # y p controller multiplier, keep line centered
+    self.down_camera_y_k = 0.001 # y p controller multiplier, keep line centered
     self.forward_speed = 0.3
     self.front_camera_k = -0.0008
     self.front_camera_yaw = -0.005
@@ -89,18 +89,24 @@ class RunRace(object):
 
   def gate_alignment(self):
     return
+  
+  def get_cropped_img(self, img, ratio):
+    height, width, _ = img.shape
+    crop_height_start = int(height / self.down_camera_crop_ratio)
+    crop_height_end = height - crop_height_start
+    crop_width_start = int(width / self.down_camera_crop_ratio)
+    crop_width_end = width - crop_width_start
+    return img[crop_height_start: crop_height_end, crop_width_start: crop_width_end]
+
 
   def down_camera_cb(self, msg):
     if self.state != "LINEFOLLOW": return
     img = self.bridge.imgmsg_to_cv2(msg)
-    width, height, _ = img.shape
+    height, width, _ = img.shape
 
     # compute slope of line perpendicular to line on the ground
-    crop_width_start = int(width / self.down_camera_crop_ratio)
-    crop_width_end = width - crop_width_start
-    crop_height_start = int(height / self.down_camera_crop_ratio)
-    crop_height_end = height - crop_height_start
-    img_cropped = img[crop_width_start: crop_width_end, crop_height_start: crop_height_end]
+    img_cropped = self.get_cropped_img(img, self.down_camera_crop_ratio)
+    crop_height, crop_width, _ = img_cropped.shape
     mask = cv2.inRange(img_cropped, self.line_lower_bound, self.line_upper_bound)
     edges = cv2.Canny(mask, 75, 150)
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap = 50)
@@ -108,11 +114,12 @@ class RunRace(object):
       x1, y1, x2, y2 = lines[0][0]
       slope = (y2 - y1) / (x2 - x1)
       perp_slope = -1 / slope
-      horiz_offset = img_cropped.shape[1] / 2 - (x2 + x1 / 2)
+      horiz_offset = crop_width // 2 - (x2 + x1) // 2
+      cv2.line(img_cropped, (crop_width // 2, crop_height // 2), ((x2 + x1) // 2, crop_height // 2), (0, 255, 0), 5)
       cv2.line(img_cropped, (x1, y1), (x2, y2), (0, 0, 255), 5)
       print(f"slope: {slope}, perp slope: {perp_slope}")
-      #cv2.imshow("stream", img_cropped)
-      #cv2.waitKey(1)
+      cv2.imshow("stream", img_cropped)
+      cv2.waitKey(1)
     else:
       print("Could not find line, zooming out")
       img = self.bridge.imgmsg_to_cv2(msg)
@@ -123,10 +130,11 @@ class RunRace(object):
         x1, y1, x2, y2 = lines[0][0]
         slope = (y2 - y1) / (x2 - x1)
         perp_slope = -1 / slope
-        horiz_offset = img.shape[1] / 2 - (x2 + x1 / 2)
+        horiz_offset = width // 2 - (x2 + x1) // 2
+        cv2.line(img, (width // 2, height // 2), ((x2 + x1) // 2, height // 2), (0, 255, 0), 5)
         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
-        #cv2.imshow("stream", img)
-        #cv2.waitKey(1)
+        cv2.imshow("stream", img)
+        cv2.waitKey(1)
       else:
         perp_slope = np.random.randint(-5, 5)
         horiz_offset = np.random.choice([-1, 1])
@@ -134,7 +142,7 @@ class RunRace(object):
     print(f"horiz offset: {horiz_offset}, perp slope: {perp_slope}")
     # target is for the normal line slope to be 0 - employ P controller for this
     self.x = self.forward_speed
-    self.y = 0 #self.down_camera_y_k * horiz_offset
+    self.y = self.down_camera_y_k * horiz_offset
     self.yaw = self.down_camera_yaw_k * perp_slope
 
   def takeoff(self):
@@ -192,8 +200,8 @@ class RunRace(object):
             gate_lines.append(line)
             cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 5)
             break
-        cv2.imshow("stream", img)
-        cv2.waitKey(1)
+        # cv2.imshow("stream", img)
+        # cv2.waitKey(1)
         self.z = ((gate_lines[0][0][1] + gate_lines[1][0][1])/2 - img.shape[0]/2) * self.front_camera_k
       else:
         self.z = 0
